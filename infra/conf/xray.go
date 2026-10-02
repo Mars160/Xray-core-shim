@@ -31,15 +31,15 @@ var (
 	}, "protocol", "settings")
 
 	outboundConfigLoader = NewJSONConfigLoader(ConfigCreatorCache{
-		"block":       func() interface{} { return new(BlackholeConfig) },
-		"blackhole":   func() interface{} { return new(BlackholeConfig) },
-		"loopback":    func() interface{} { return new(LoopbackConfig) },
-		"direct":      func() interface{} { return new(FreedomConfig) },
-		"freedom":     func() interface{} { return new(FreedomConfig) },
-		"http":        func() interface{} { return new(HTTPClientConfig) },
-		"socks":       func() interface{} { return new(SocksClientConfig) },
-		"vless":       func() interface{} { return new(VLessOutboundConfig) },
-		"dns":         func() interface{} { return new(DNSOutboundConfig) },
+		"block":     func() interface{} { return new(BlackholeConfig) },
+		"blackhole": func() interface{} { return new(BlackholeConfig) },
+		"loopback":  func() interface{} { return new(LoopbackConfig) },
+		"direct":    func() interface{} { return new(FreedomConfig) },
+		"freedom":   func() interface{} { return new(FreedomConfig) },
+		"http":      func() interface{} { return new(HTTPClientConfig) },
+		"socks":     func() interface{} { return new(SocksClientConfig) },
+		"vless":     func() interface{} { return new(VLessOutboundConfig) },
+		"dns":       func() interface{} { return new(DNSOutboundConfig) },
 	}, "protocol", "settings")
 )
 
@@ -237,7 +237,6 @@ func validateOutboundTransportSecurity(rawConfig interface{}, senderSettings *pr
 		}
 	}
 
-
 	return nil
 }
 
@@ -322,7 +321,6 @@ func (c *OutboundDetourConfig) Build() (*core.OutboundHandlerConfig, error) {
 	if err := validateOutboundTransportSecurity(rawConfig, senderSettings); err != nil {
 		return nil, err
 	}
-
 
 	if fc, ok := ts.(*freedom.Config); ok {
 		if senderSettings.StreamSettings != nil &&
