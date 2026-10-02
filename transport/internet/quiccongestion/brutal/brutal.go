@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/xtls/xray-core/transport/internet/hysteria/congestion/common"
+	"github.com/xtls/xray-core/transport/internet/quiccongestion/common"
 
 	"github.com/apernet/quic-go/congestion"
 	"github.com/apernet/quic-go/monotime"
@@ -18,7 +18,7 @@ const (
 	minAckRate                 = 0.8
 	congestionWindowMultiplier = 2
 
-	debugEnv           = "HYSTERIA_BRUTAL_DEBUG"
+	debugEnv           = "XRAY_QUIC_BRUTAL_DEBUG"
 	debugPrintInterval = 2
 )
 

@@ -12,7 +12,7 @@ import (
 	"github.com/apernet/quic-go/congestion"
 	"github.com/apernet/quic-go/monotime"
 
-	"github.com/xtls/xray-core/transport/internet/hysteria/congestion/common"
+	"github.com/xtls/xray-core/transport/internet/quiccongestion/common"
 )
 
 // BbrSender implements BBR congestion control algorithm.  BBR aims to estimate
@@ -39,7 +39,7 @@ const (
 	// The newly derived CWND gain for STARTUP, 2.
 	derivedHighCWNDGain = 2.0
 
-	debugEnv = "HYSTERIA_BBR_DEBUG"
+	debugEnv = "XRAY_QUIC_BBR_DEBUG"
 )
 
 // The cycle of gains used during the PROBE_BW stage.
