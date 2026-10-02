@@ -365,7 +365,6 @@ func TestXDriveTemplateNeedsTemplate(t *testing.T) {
 	}
 }
 
-
 func TestRemovedTransportsAreRejected(t *testing.T) {
 	removed := []TransportProtocol{
 		"kcp", "mkcp",
