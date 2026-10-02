@@ -31,22 +31,21 @@ func (p TransportProtocol) Build() (string, error) {
 }
 
 type StreamConfig struct {
-	Address             *Address           `json:"address"`
-	Port                uint16             `json:"port"`
-	Method              *TransportProtocol `json:"method"`
-	Network             *TransportProtocol `json:"network"`
-	Security            string             `json:"security"`
-	FinalMask           *FinalMask         `json:"finalmask"`
-	TLSSettings         *TLSConfig         `json:"tlsSettings"`
-	REALITYSettings     *REALITYConfig     `json:"realitySettings"`
-	RAWSettings         *TCPConfig         `json:"rawSettings"`
-	TCPSettings         *TCPConfig         `json:"tcpSettings"`
-	XHTTPSettings       *SplitHTTPConfig   `json:"xhttpSettings"`
-	SplitHTTPSettings   *SplitHTTPConfig   `json:"splithttpSettings"`
-	XDRIVESettings      *XDriveConfig      `json:"xdriveSettings"`
-	SocketSettings      *SocketConfig      `json:"sockopt"`
+	Address           *Address           `json:"address"`
+	Port              uint16             `json:"port"`
+	Method            *TransportProtocol `json:"method"`
+	Network           *TransportProtocol `json:"network"`
+	Security          string             `json:"security"`
+	FinalMask         *FinalMask         `json:"finalmask"`
+	TLSSettings       *TLSConfig         `json:"tlsSettings"`
+	REALITYSettings   *REALITYConfig     `json:"realitySettings"`
+	RAWSettings       *TCPConfig         `json:"rawSettings"`
+	TCPSettings       *TCPConfig         `json:"tcpSettings"`
+	XHTTPSettings     *SplitHTTPConfig   `json:"xhttpSettings"`
+	SplitHTTPSettings *SplitHTTPConfig   `json:"splithttpSettings"`
+	XDRIVESettings    *XDriveConfig      `json:"xdriveSettings"`
+	SocketSettings    *SocketConfig      `json:"sockopt"`
 }
-
 // Build implements Buildable.
 func (c *StreamConfig) Build() (*internet.StreamConfig, error) {
 	config := &internet.StreamConfig{
