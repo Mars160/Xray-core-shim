@@ -364,3 +364,20 @@ func TestXDriveTemplateNeedsTemplate(t *testing.T) {
 		t.Fatal("Build accepted a template service without a template")
 	}
 }
+
+
+func TestRemovedTransportsAreRejected(t *testing.T) {
+	removed := []TransportProtocol{
+		"kcp", "mkcp",
+		"grpc",
+		"ws", "websocket",
+		"httpupgrade",
+		"hysteria",
+	}
+
+	for _, protocol := range removed {
+		if got, err := protocol.Build(); err == nil {
+			t.Errorf("removed transport %q is still accepted as %q", protocol, got)
+		}
+	}
+}
