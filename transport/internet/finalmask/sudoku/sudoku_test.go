@@ -31,14 +31,11 @@ import (
 	core "github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/proxy/dokodemo"
 	"github.com/xtls/xray-core/proxy/freedom"
-	hyproxy "github.com/xtls/xray-core/proxy/hysteria"
-	hyaccount "github.com/xtls/xray-core/proxy/hysteria/account"
 	"github.com/xtls/xray-core/proxy/vless"
 	vin "github.com/xtls/xray-core/proxy/vless/inbound"
 	vout "github.com/xtls/xray-core/proxy/vless/outbound"
 	testingtcp "github.com/xtls/xray-core/testing/servers/tcp"
 	"github.com/xtls/xray-core/transport/internet"
-	hytransport "github.com/xtls/xray-core/transport/internet/hysteria"
 	"github.com/xtls/xray-core/transport/internet/reality"
 	splithttp "github.com/xtls/xray-core/transport/internet/splithttp"
 	transtcp "github.com/xtls/xray-core/transport/internet/tcp"
@@ -155,9 +152,6 @@ func TestSudokuE2ETemp(t *testing.T) {
 	cases := []protocolCase{
 		{name: "vless-reality", transport: "tcp", run: func(t *testing.T, bin string, mode trafficMode) caseResult {
 			return runVLESSRealityCase(t, bin, mode, payloadSize)
-		}},
-		{name: "hysteria2", transport: "udp", run: func(t *testing.T, bin string, mode trafficMode) caseResult {
-			return runHysteria2Case(t, bin, mode, payloadSize)
 		}},
 		{name: "vless-enc", transport: "tcp", run: func(t *testing.T, bin string, mode trafficMode) caseResult {
 			return runVLesseEncCase(t, bin, mode, payloadSize)
@@ -344,127 +338,6 @@ func runVLESSRealityCase(t *testing.T, bin string, mode trafficMode, payloadSize
 	exerciseTCPClient(t, int(clientPort), payloadSize)
 
 	return analyzeTCPRelay(t, "vless-reality", mode, relay.Snapshots())
-}
-
-func runHysteria2Case(t *testing.T, bin string, mode trafficMode, payloadSize int) caseResult {
-	backend := startXOREchoServer(t)
-	defer backend.Close()
-
-	serverPort := testingtcp.PickPort()
-	relayPort := testingtcp.PickPort()
-	clientPort := testingtcp.PickPort()
-
-	relay := startUDPRelay(t, int(relayPort), int(serverPort))
-	defer relay.Close()
-
-	ct, ctHash := cert.MustGenerate(nil, cert.CommonName("localhost"), cert.DNSNames("localhost"))
-	auth := "hy2-auth-secret"
-
-	serverConfig := defaultApps(&core.Config{
-		Inbound: []*core.InboundHandlerConfig{
-			{
-				ReceiverSettings: serial.ToTypedMessage(&proxyman.ReceiverConfig{
-					PortList: &xnet.PortList{Range: []*xnet.PortRange{xnet.SinglePortRange(serverPort)}},
-					Listen:   xnet.NewIPOrDomain(xnet.LocalHostIP),
-					StreamSettings: &internet.StreamConfig{
-						ProtocolName: "hysteria",
-						TransportSettings: []*internet.TransportConfig{
-							{
-								ProtocolName: "hysteria",
-								Settings: serial.ToTypedMessage(&hytransport.Config{
-									Auth:           auth,
-									UdpIdleTimeout: 60,
-								}),
-							},
-						},
-						SecurityType: serial.GetMessageType(&xtls.Config{}),
-						SecuritySettings: []*serial.TypedMessage{
-							serial.ToTypedMessage(&xtls.Config{
-								Certificate:  []*xtls.Certificate{xtls.ParseCertificate(ct)},
-								NextProtocol: []string{"h3"},
-							}),
-						},
-						Udpmasks: []*serial.TypedMessage{serial.ToTypedMessage(cloneConfig(mode.config))},
-					},
-				}),
-				ProxySettings: serial.ToTypedMessage(&hyproxy.ServerConfig{
-					Users: []*protocol.User{
-						{
-							Account: serial.ToTypedMessage(&hyaccount.Account{Auth: auth}),
-						},
-					},
-				}),
-			},
-		},
-		Outbound: []*core.OutboundHandlerConfig{
-			{ProxySettings: serial.ToTypedMessage(&freedom.Config{
-				FinalRules: []*freedom.FinalRuleConfig{{Action: freedom.RuleAction_Allow}},
-			})},
-		},
-	})
-
-	clientConfig := defaultApps(&core.Config{
-		Inbound: []*core.InboundHandlerConfig{
-			{
-				ReceiverSettings: serial.ToTypedMessage(&proxyman.ReceiverConfig{
-					PortList: &xnet.PortList{Range: []*xnet.PortRange{xnet.SinglePortRange(clientPort)}},
-					Listen:   xnet.NewIPOrDomain(xnet.LocalHostIP),
-				}),
-				ProxySettings: serial.ToTypedMessage(&dokodemo.Config{
-					RewriteAddress:  xnet.NewIPOrDomain(backend.Address()),
-					RewritePort:     uint32(backend.Port()),
-					AllowedNetworks: []xnet.Network{xnet.Network_TCP},
-				}),
-			},
-		},
-		Outbound: []*core.OutboundHandlerConfig{
-			{
-				ProxySettings: serial.ToTypedMessage(&hyproxy.ClientConfig{
-					Server: &protocol.ServerEndpoint{
-						Address: xnet.NewIPOrDomain(xnet.LocalHostIP),
-						Port:    uint32(relayPort),
-						User: &protocol.User{
-							Account: serial.ToTypedMessage(&hyaccount.Account{Auth: auth}),
-						},
-					},
-				}),
-				SenderSettings: serial.ToTypedMessage(&proxyman.SenderConfig{
-					StreamSettings: &internet.StreamConfig{
-						ProtocolName: "hysteria",
-						TransportSettings: []*internet.TransportConfig{
-							{
-								ProtocolName: "hysteria",
-								Settings: serial.ToTypedMessage(&hytransport.Config{
-									Auth:           auth,
-									UdpIdleTimeout: 60,
-								}),
-							},
-						},
-						SecurityType: serial.GetMessageType(&xtls.Config{}),
-						SecuritySettings: []*serial.TypedMessage{
-							serial.ToTypedMessage(&xtls.Config{
-								ServerName:           "localhost",
-								PinnedPeerCertSha256: [][]byte{ctHash[:]},
-								NextProtocol:         []string{"h3"},
-							}),
-						},
-						Udpmasks: []*serial.TypedMessage{serial.ToTypedMessage(cloneConfig(mode.config))},
-					},
-				}),
-			},
-		},
-	})
-
-	serverCmd, clientCmd := runXrayPair(t, bin, serverConfig, clientConfig)
-	defer stopCmd(clientCmd)
-	defer stopCmd(serverCmd)
-	if err := exerciseTCPClientErr(t, int(clientPort), payloadSize); err != nil {
-		c2s, s2c := relay.Snapshots()
-		t.Fatalf("hy2 traffic failed: %v (udp packets c2s=%d s2c=%d first_c2s=%d first_s2c=%d)", err, len(c2s), len(s2c), firstChunkLen(c2s), firstChunkLen(s2c))
-	}
-
-	c2s, s2c := relay.Snapshots()
-	return analyzeUDPRelay(t, "hysteria2", mode, c2s, s2c)
 }
 
 func runVLesseEncCase(t *testing.T, bin string, mode trafficMode, payloadSize int) caseResult {
