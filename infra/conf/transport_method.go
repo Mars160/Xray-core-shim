@@ -10,22 +10,16 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/xtls/xray-core/common"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/common/platform/filesystem"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/utils"
 	"github.com/xtls/xray-core/transport/internet"
-	"github.com/xtls/xray-core/transport/internet/grpc"
 	"github.com/xtls/xray-core/transport/internet/headers/http"
 	"github.com/xtls/xray-core/transport/internet/headers/noop"
-	"github.com/xtls/xray-core/transport/internet/httpupgrade"
-	"github.com/xtls/xray-core/transport/internet/hysteria"
-	"github.com/xtls/xray-core/transport/internet/kcp"
 	"github.com/xtls/xray-core/transport/internet/masque"
 	"github.com/xtls/xray-core/transport/internet/splithttp"
 	"github.com/xtls/xray-core/transport/internet/tcp"
-	"github.com/xtls/xray-core/transport/internet/websocket"
 	"github.com/xtls/xray-core/transport/internet/xdrive"
 	"golang.org/x/net/http/httpguts"
 	"google.golang.org/protobuf/proto"
@@ -524,170 +518,6 @@ func roomSize(tableSize int, min, max int32) *big.Int {
 	return sum
 }
 
-type KCPConfig struct {
-	Mtu              *uint32 `json:"mtu"`
-	Tti              *uint32 `json:"tti"`
-	UpCap            *uint32 `json:"uplinkCapacity"`
-	DownCap          *uint32 `json:"downlinkCapacity"`
-	CwndMultiplier   *uint32 `json:"cwndMultiplier"`
-	MaxSendingWindow *uint32 `json:"maxSendingWindow"`
-
-	HeaderConfig json.RawMessage `json:"header"`
-	Seed         *string         `json:"seed"`
-}
-
-// Build implements Buildable.
-func (c *KCPConfig) Build() (proto.Message, error) {
-	config := common.Must2(internet.CreateTransportConfig(kcp.ProtocolName)).(*kcp.Config)
-
-	if c.Mtu != nil {
-		config.Mtu = *c.Mtu
-	}
-	if c.Tti != nil {
-		config.Tti = *c.Tti
-	}
-	if c.UpCap != nil {
-		config.UplinkCapacity = *c.UpCap
-	}
-	if c.DownCap != nil {
-		config.DownlinkCapacity = *c.DownCap
-	}
-	if c.CwndMultiplier != nil {
-		config.CwndMultiplier = *c.CwndMultiplier
-	}
-	if c.MaxSendingWindow != nil {
-		config.MaxSendingWindow = *c.MaxSendingWindow
-	}
-
-	if config.Mtu < 21 {
-		return nil, errors.New("MTU must be at least 21")
-	}
-	if config.Tti < 10 || config.Tti > 1000 {
-		return nil, errors.New("TTI must be between 10 and 1000")
-	}
-	if config.CwndMultiplier < 1 {
-		return nil, errors.New("CwndMultiplier must be at least 1")
-	}
-	if config.GetSendingBufferSize() == 0 {
-		return nil, errors.New("MaxSendingWindow must be at least ", config.Mtu)
-	}
-
-	return config, nil
-}
-
-type GRPCConfig struct {
-	Authority           string `json:"authority"`
-	ServiceName         string `json:"serviceName"`
-	MultiMode           bool   `json:"multiMode"`
-	IdleTimeout         int32  `json:"idle_timeout"`
-	HealthCheckTimeout  int32  `json:"health_check_timeout"`
-	PermitWithoutStream bool   `json:"permit_without_stream"`
-	InitialWindowsSize  int32  `json:"initial_windows_size"`
-	UserAgent           string `json:"user_agent"`
-}
-
-func (g *GRPCConfig) Build() (proto.Message, error) {
-	if g.IdleTimeout <= 0 {
-		g.IdleTimeout = 0
-	}
-	if g.HealthCheckTimeout <= 0 {
-		g.HealthCheckTimeout = 0
-	}
-	if g.InitialWindowsSize < 0 {
-		// default window size of gRPC-go
-		g.InitialWindowsSize = 0
-	}
-
-	return &grpc.Config{
-		Authority:           g.Authority,
-		ServiceName:         g.ServiceName,
-		MultiMode:           g.MultiMode,
-		IdleTimeout:         g.IdleTimeout,
-		HealthCheckTimeout:  g.HealthCheckTimeout,
-		PermitWithoutStream: g.PermitWithoutStream,
-		InitialWindowsSize:  g.InitialWindowsSize,
-		UserAgent:           g.UserAgent,
-	}, nil
-}
-
-type WebSocketConfig struct {
-	Host                string            `json:"host"`
-	Path                string            `json:"path"`
-	Headers             map[string]string `json:"headers"`
-	AcceptProxyProtocol bool              `json:"acceptProxyProtocol"`
-	HeartbeatPeriod     uint32            `json:"heartbeatPeriod"`
-}
-
-// Build implements Buildable.
-func (c *WebSocketConfig) Build() (proto.Message, error) {
-	path := c.Path
-	var ed uint32
-	if u, err := url.Parse(path); err == nil {
-		if q := u.Query(); q.Get("ed") != "" {
-			Ed, _ := strconv.Atoi(q.Get("ed"))
-			ed = uint32(Ed)
-			q.Del("ed")
-			u.RawQuery = q.Encode()
-			path = u.String()
-		}
-	}
-	// Priority (client): host > serverName > address
-	for k, v := range c.Headers {
-		if strings.ToLower(k) == "host" {
-			errors.PrintDeprecatedFeatureWarning(`"host" in "headers"`, `independent "host"`)
-			if c.Host == "" {
-				c.Host = v
-			}
-			delete(c.Headers, k)
-		}
-	}
-	config := &websocket.Config{
-		Path:                path,
-		Host:                c.Host,
-		Header:              c.Headers,
-		AcceptProxyProtocol: c.AcceptProxyProtocol,
-		Ed:                  ed,
-		HeartbeatPeriod:     c.HeartbeatPeriod,
-	}
-	return config, nil
-}
-
-type HttpUpgradeConfig struct {
-	Host                string            `json:"host"`
-	Path                string            `json:"path"`
-	Headers             map[string]string `json:"headers"`
-	AcceptProxyProtocol bool              `json:"acceptProxyProtocol"`
-}
-
-// Build implements Buildable.
-func (c *HttpUpgradeConfig) Build() (proto.Message, error) {
-	path := c.Path
-	var ed uint32
-	if u, err := url.Parse(path); err == nil {
-		if q := u.Query(); q.Get("ed") != "" {
-			Ed, _ := strconv.Atoi(q.Get("ed"))
-			ed = uint32(Ed)
-			q.Del("ed")
-			u.RawQuery = q.Encode()
-			path = u.String()
-		}
-	}
-	// Priority (client): host > serverName > address
-	for k := range c.Headers {
-		if strings.ToLower(k) == "host" {
-			return nil, errors.New(`"headers" can't contain "host"`)
-		}
-	}
-	config := &httpupgrade.Config{
-		Path:                path,
-		Host:                c.Host,
-		Header:              c.Headers,
-		AcceptProxyProtocol: c.AcceptProxyProtocol,
-		Ed:                  ed,
-	}
-	return config, nil
-}
-
 const (
 	Byte     = 1
 	Kilobyte = 1024 * Byte
@@ -737,57 +567,6 @@ func (b Bandwidth) Bps() (uint64, error) {
 	}
 
 	return uint64(val*float64(mul)) / 8, nil
-}
-
-type Masquerade struct {
-	Type string `json:"type"`
-
-	Dir string `json:"dir"`
-
-	Url         string `json:"url"`
-	RewriteHost bool   `json:"rewriteHost"`
-	XForwarded  bool   `json:"xForwarded"`
-	Insecure    bool   `json:"insecure"`
-
-	Content    string            `json:"content"`
-	Headers    map[string]string `json:"headers"`
-	StatusCode int32             `json:"statusCode"`
-}
-
-type HysteriaConfig struct {
-	Version        int32      `json:"version"`
-	Auth           string     `json:"auth"`
-	UdpIdleTimeout int64      `json:"udpIdleTimeout"`
-	Masquerade     Masquerade `json:"masquerade"`
-}
-
-func (c *HysteriaConfig) Build() (proto.Message, error) {
-	if c.Version != 2 {
-		return nil, errors.New("version != 2")
-	}
-
-	if c.UdpIdleTimeout != 0 && (c.UdpIdleTimeout < 2 || c.UdpIdleTimeout > 600) {
-		return nil, errors.New("UdpIdleTimeout must be between 2 and 600")
-	}
-
-	config := &hysteria.Config{}
-	config.Auth = c.Auth
-	config.UdpIdleTimeout = c.UdpIdleTimeout
-	config.MasqType = c.Masquerade.Type
-	config.MasqFile = c.Masquerade.Dir
-	config.MasqUrl = c.Masquerade.Url
-	config.MasqUrlRewriteHost = c.Masquerade.RewriteHost
-	config.MasqUrlXForwarded = c.Masquerade.XForwarded
-	config.MasqUrlInsecure = c.Masquerade.Insecure
-	config.MasqString = c.Masquerade.Content
-	config.MasqStringHeaders = c.Masquerade.Headers
-	config.MasqStringStatusCode = c.Masquerade.StatusCode
-
-	if config.UdpIdleTimeout == 0 {
-		config.UdpIdleTimeout = 60
-	}
-
-	return config, nil
 }
 
 type MasqueConfig struct {
